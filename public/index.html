@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0a0e17">
-<title>游戏厅 · 局域网</title>
+<title>游戏厅</title>
 <style>
 :root { --bg:#0a0e17; --ink:#e8e2d4; --ink2:#a6aebf; --gold:#d9b45f; --line:rgba(232,226,212,.11); }
 * { margin:0; padding:0; box-sizing:border-box; }
@@ -13,6 +13,8 @@ body { background:var(--bg); color:var(--ink); font-family:-apple-system,"PingFa
 .wrap { width:100%; max-width:420px; }
 h1 { font-size:26px; letter-spacing:.1em; color:var(--gold); text-align:center; margin-bottom:6px; }
 .sub { text-align:center; color:var(--ink2); font-size:13px; margin-bottom:22px; }
+.line { text-align:center; font-size:12px; margin-bottom:18px; color:var(--ink2); }
+.line b { color:var(--gold); }
 .game { display:flex; align-items:center; gap:14px; padding:16px; border:1px solid var(--line);
         border-radius:14px; margin-bottom:12px; text-decoration:none; color:var(--ink);
         background:rgba(232,226,212,.03); transition:transform .15s, border-color .15s; }
@@ -23,14 +25,17 @@ h1 { font-size:26px; letter-spacing:.1em; color:var(--gold); text-align:center; 
 .gdesc { font-size:12px; color:var(--ink2); margin-top:3px; }
 .arrow { margin-left:auto; color:var(--ink2); flex:none; }
 .foot { text-align:center; color:var(--ink2); font-size:11px; margin-top:20px; opacity:.7; }
+#lines a { color:var(--gold); text-decoration:none; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>游戏厅</h1>
-  <p class="sub">同一 WiFi 下，打开就能玩</p>
+  <p class="sub">同一 WiFi 或异地，打开就能玩</p>
+  <p class="line" id="lineInfo">线路检测中…</p>
   <div id="list"></div>
-  <p class="foot">入口 · 局域网版</p>
+  <p id="lines" style="text-align:center;font-size:12px;margin-top:6px"></p>
+  <p class="foot">入口</p>
 </div>
 <script>
 (() => {
@@ -39,11 +44,83 @@ h1 { font-size:26px; letter-spacing:.1em; color:var(--gold); text-align:center; 
   const GAMES = [
     { path: '/ninja/', ico: '🥷', name: '忍者之夜', desc: '4–11 人 · 身份推理 · 一晚定生死' },
   ];
-  document.getElementById('list').innerHTML = GAMES.map(g =>
-    '<a class="game" href="' + g.path + '">' +
-    '<span class="ico">' + g.ico + '</span>' +
-    '<span><span class="gname">' + g.name + '</span><br><span class="gdesc">' + g.desc + '</span></span>' +
-    '<span class="arrow">›</span></a>').join('');
+  const DIRECT = ''; // ← 填你的直连域名(如 http://game.example.com:7788),留空则跳过快线
+  const directHost = DIRECT ? new URL(DIRECT).host : '';
+  const isDirect = !!directHost && location.host === directHost;
+  const info = document.getElementById('lineInfo');
+
+  function render(line) {
+    info.innerHTML = '当前线路：<b>' + line + '</b>';
+    renderLines();
+    const https = location.protocol === 'https:';
+    document.getElementById('list').innerHTML = GAMES.map(g =>
+      '<a class="game" href="' + g.path + '">' +
+      '<span class="ico">' + g.ico + '</span>' +
+      '<span><span class="gname">' + g.name + '</span><br><span class="gdesc">' + g.desc +
+      (https && DIRECT ? ' <a style="color:var(--gold)" href="' + DIRECT + g.path + '">快线›</a>' : '') +
+      '</span></span>' +
+      '<span class="arrow">›</span></a>').join('');
+  }
+
+  const isLan = /^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.|.+\.local$)/.test(location.hostname);
+  if (isLan) { render('局域网（最快）'); return; }   /* 在局域网里就钉死本地,不往域名跳 */
+  if (isDirect) { render('直连（快线）'); return; }
+
+  /* 对外入口进来：先探测局域网（最快），再探测直连快线，都不通留在隧道 */
+  const probe = (url, ms) => new Promise((res) => {
+    const c = new AbortController();
+    const t = setTimeout(() => { c.abort(); res(false); }, ms);
+    fetch(url, { signal: c.signal }).then((r) => { clearTimeout(t); res(r.ok); })
+      .catch(() => { clearTimeout(t); res(false); });
+  });
+  let lanIp = null;
+  /* JSONP 探测:<script> 加载不受 CORS 管辖,能穿过 Safari 对私网 fetch 的拦截 */
+  function jsonpProbe(ip, ms) {
+    return new Promise((res) => {
+      const cbName = '__probe' + Date.now();
+      let done = false, sc = null;
+      const finish = (v) => { if (done) return; done = true; clearTimeout(t); try { delete window[cbName]; } catch (e) {} try { document.head.removeChild(sc); } catch (e) {} res(v); };
+      const t = setTimeout(() => finish(false), ms);
+      window[cbName] = () => finish(true);
+      sc = document.createElement('script');
+      sc.onerror = () => finish(false);
+      sc.src = 'http://' + ip + ':7788/api/lan?callback=' + cbName;
+      document.head.appendChild(sc);
+    });
+  }
+  function renderLines() {
+    /* 手动兜底:Safari 等浏览器可能拦掉自动探测,点链接跳转必放行 */
+    const el = document.getElementById('lines');
+    if (!el) return;
+    const parts = [];
+    if (!isLan && lanIp) parts.push('<a href="http://' + lanIp + ':7788/">局域网›</a>');
+    if (DIRECT && !isDirect) parts.push('<a href="' + DIRECT + '/">快线›</a>');
+    if (!isLan && !isDirect) parts.push('<a href="/ninja/">隧道›</a>');
+    el.innerHTML = parts.length ? '其它线路：' + parts.join(' · ') : '';
+  }
+  (async () => {
+    /* 1) 问服务端要局域网地址，逐个探测，通就跳过去 */
+    try {
+      const lan = await (await fetch('/api/lan')).json();
+      lanIp = (lan && lan.ips && lan.ips[0]) || null;
+      for (const ip of (lan && lan.ips) || []) {
+        const ok = await probe('http://' + ip + ':7788/api/meta', 1200) || await jsonpProbe(ip, 1500);
+        if (ok) {
+          render('跳转局域网…');
+          location.replace('http://' + ip + ':7788/');
+          return;
+        }
+      }
+    } catch (e) { /* /api/lan 不通就跳过这一层 */ }
+    /* 2) 探测直连快线 */
+    if (DIRECT && await probe(DIRECT + '/api/meta', 1500)) {
+      render('跳转直连…');
+      location.replace(DIRECT + '/');
+      return;
+    }
+    /* 3) 都不通：留在隧道 */
+    render('隧道（备用）');
+  })();
 })();
 </script>
 </body>
