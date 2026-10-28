@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0e17">
+<title>游戏厅 · 局域网</title>
+<style>
+:root { --bg:#0a0e17; --ink:#e8e2d4; --ink2:#a6aebf; --gold:#d9b45f; --line:rgba(232,226,212,.11); }
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--ink); font-family:-apple-system,"PingFang SC",sans-serif;
+       min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; }
+.wrap { width:100%; max-width:420px; }
+h1 { font-size:26px; letter-spacing:.1em; color:var(--gold); text-align:center; margin-bottom:6px; }
+.sub { text-align:center; color:var(--ink2); font-size:13px; margin-bottom:22px; }
+.game { display:flex; align-items:center; gap:14px; padding:16px; border:1px solid var(--line);
+        border-radius:14px; margin-bottom:12px; text-decoration:none; color:var(--ink);
+        background:rgba(232,226,212,.03); transition:transform .15s, border-color .15s; }
+.game:active { transform:scale(.98); border-color:var(--gold); }
+.ico { width:46px; height:46px; border-radius:12px; display:flex; align-items:center; justify-content:center;
+       font-size:24px; background:rgba(217,180,95,.12); color:var(--gold); flex:none; }
+.gname { font-size:16px; font-weight:600; }
+.gdesc { font-size:12px; color:var(--ink2); margin-top:3px; }
+.arrow { margin-left:auto; color:var(--ink2); flex:none; }
+.foot { text-align:center; color:var(--ink2); font-size:11px; margin-top:20px; opacity:.7; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>游戏厅</h1>
+  <p class="sub">同一 WiFi 下，打开就能玩</p>
+  <div id="list"></div>
+  <p class="foot">入口 · 局域网版</p>
+</div>
+<script>
+(() => {
+  'use strict';
+  /* 新游戏往这里加一行即可上墙 */
+  const GAMES = [
+    { path: '/ninja/', ico: '🥷', name: '忍者之夜', desc: '4–11 人 · 身份推理 · 一晚定生死' },
+  ];
+  document.getElementById('list').innerHTML = GAMES.map(g =>
+    '<a class="game" href="' + g.path + '">' +
+    '<span class="ico">' + g.ico + '</span>' +
+    '<span><span class="gname">' + g.name + '</span><br><span class="gdesc">' + g.desc + '</span></span>' +
+    '<span class="arrow">›</span></a>').join('');
+})();
+</script>
+</body>
+</html>
